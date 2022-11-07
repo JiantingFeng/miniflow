@@ -8,6 +8,11 @@ MiniFlow
 This project is mainly for learning purpose. It is not intended to be used in production. Largely inspired by `Tinygrad <https://github.com/geohot/tinygrad/>`_ 
 
 
+Goals
+=====
+* 1. Build a tiny deep learning framework from scratch (with essential modules)
+* 2. Train a tiny model on MNIST dataset.
+
 License
 =======
 MIT license
