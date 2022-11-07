@@ -3,7 +3,7 @@
 
 # Start from tensor class, which is the base
 
-from typing import Optional
+from typing import List, Optional
 import numpy as np
 
 
@@ -25,6 +25,9 @@ class Tensor:
         self.requires_grad = requires_grad
         # gradient tensor (Optional)
         self.grad: Optional[Tensor] = None
+        # ctx can be seen as the context where the `Function` is called
+        # In forward pass, ctx is used to store the intermediate results
+        self.ctx: Optional[Function] = None
 
     def __repr__(self) -> str:
         return f"<Tensor: {self.data}, requires_grad={self.requires_grad}>"
@@ -60,3 +63,50 @@ class Tensor:
     @classmethod
     def eye(cls, n, **kwargs):
         return cls(np.eye(n, dtype=np.float32), **kwargs)
+
+    # Topological sort (bfs) and backpropagation
+    def deepwalk(self) -> List['Tensor']:
+        def bfs(node: Tensor, visited: set,
+                nodes: list[Tensor]) -> list[Tensor]:
+            visited.add(node)
+            if node.ctx:
+                [bfs(i, visited, nodes) for i in node.ctx.inputs
+                 if i not in visited]
+                nodes.append(node)
+            return nodes
+        return bfs(self, set(), [])
+
+    # backpropagation
+    # TODO: Not complete yet
+    def backward(self):
+        self.grad = Tensor.ones(self.shape, requires_grad=False)
+
+        for node in self.deepwalk()[::-1]:
+            if not any(x.requires_grad for x in node.ctx.inputs):
+                continue
+            grads = node.ctx.backward(node.grad)
+            for i, grad in enumerate(grads):
+                if grad is None:
+                    continue
+                if node.ctx.inputs[i].grad is None:
+                    node.ctx.inputs[i].grad = grad
+                else:
+                    node.ctx.inputs[i].grad += grad
+            del node.ctx
+
+
+class Function:
+    def __init__(self, *tensors: Tensor) -> None:
+        self.inputs = tensors
+        self.needs_input_grad = [t.requires_grad for t in self.inputs]
+        self.needs_output_grad = any(self.needs_input_grad)
+        self.saved_tensors: List[Tensor] = []
+
+    def forward(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def backward(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def save_for_backward(self, *x) -> None:
+        self.saved_tensors.extend(x)
